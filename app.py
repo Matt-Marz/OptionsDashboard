@@ -83,10 +83,36 @@ def plotTitles():
     )
     
 def tickerDropdown():
-    return html.Div(id="available-tickers",style={"width": "25%","margin": "25px", "font-size": "20px","font-weight": "bold"},)
+    return html.Div(
+                    [
+                    dcc.Dropdown(id="available-tickers",
+                                value = "SPY"
+                                )
+                    ],
+                    style={"width": "25%","margin": "20px", "font-size": "16px","font-weight": "bold"},
+                )
 
 def rangeSlider():
-    return html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},)
+    return html.Div(
+                    [
+                    dcc.Slider(id="date-slider",
+                                min=0, max=30, step=1,
+                                value=30,
+                                marks=None,
+                                verticalHeight = 1200
+                                )
+                    ],
+                    style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},
+                )
+
+# def rangeSlider():
+#     return (dcc.Slider(id='date-slider',
+#                                 min=0, max=30, step=1,
+#                                 value=30,
+#                                 marks=None,
+#                                 verticalHeight = 1200
+#                         )
+#             )
 
 def dateDropdown():
     return html.Div(
@@ -96,14 +122,14 @@ def dateDropdown():
                         # end_date_placeholder_text="End Period",
                         calendar_orientation='vertical',
                         updatemode = "bothdates",
-                        min_date_allowed=dte.date(2021, 1, 1),
+                        min_date_allowed=dte.date(2021, 3, 1),
                         max_date_allowed=dte.datetime.today(),
-                        initial_visible_month=dte.date(2021, 1, 1),
-                        start_date = dte.date(2021, 2, 1),
-                        end_date=dte.date(2021, 4, 1),
+                        initial_visible_month=dte.date(2023, 3, 20),
+                        start_date = dte.date(2023, 3, 20),
+                        end_date=dte.date(2023, 4, 1),
                     )
                 ],
-                style={"width": "50%","margin": "25px"},
+                style={"width": "50%","margin": "20px"},
         )
 
 def userInputs():
@@ -125,17 +151,18 @@ app.layout = html.Div(
             children=[
                     userInputs(),
                     plotTitles(),
+                    dcc.Store(id='option-data-subset'),
                     html.Div([dcc.Graph(id="option-chain-graph",style={"margin-top":"5px"})]),# "margin-left":"50px","margin-right":"120px"})]),
+                    # html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},),
                     rangeSlider(),
                     html.Br(),html.Br(),html.Br(),
-                    dcc.Store(id='option-data-subset')
             ]
         )
     ]
 )
 
 @app.callback(
-    Output('available-tickers', 'children'),
+    Output('available-tickers', 'options'),
     Input('date-select-dropdown', 'start_date'),
     Input('date-select-dropdown', 'end_date'))
 def createTickerDropdown(start_date, end_date):
@@ -144,15 +171,13 @@ def createTickerDropdown(start_date, end_date):
         if end_date is not None:
             end_date_object =  dte.datetime.fromisoformat(end_date)
         validTickers = qdb.getTickers(start_date_object,end_date_object)
-        return(dcc.Dropdown(
-                                options = validTickers,
-                                value = "SPY"
-                        ),
-        )
+        if validTickers == []:
+            return(["No available tickers for selected dates"])
+        return validTickers
           
 @app.callback(
     Output('option-data-subset', 'data'),
-    Input('available-tickers', 'children'),
+    Input('available-tickers', 'value'),
     Input('date-select-dropdown', 'start_date'),
     Input('date-select-dropdown', 'end_date'))
 def getSubsetData(ticker, start_date, end_date):
@@ -160,46 +185,46 @@ def getSubsetData(ticker, start_date, end_date):
         start_date_object = dte.datetime.fromisoformat(start_date)
     if end_date is not None:
         end_date_object =  dte.datetime.fromisoformat(end_date)
-    tickerQuery = ticker[0]['props']['value']
-    [Price,Calls,Puts] = qdb.queryDB(tickerQuery,start_date_object,end_date_object)
+    tickerQuery = ticker#['props']['value']
+    [Price,Calls,Puts] = qdb.queryDB(tickerQuery,start_date_object,end_date_object)    
     datasets = {'Price': Price, 'Calls': Calls, 'Puts': Puts}
-    
-    return datasets
+    return json.dumps(datasets)
 
-@app.callback(
-    Output('date-slider', 'children'),
-    Input('option-data-subset', 'data'))
-def createDateSlider(opData):
-        validDates  = pd.Series(opData['Calls'].keys())
-        return(dcc.Slider(
-                validDates.index[0], validDates.index[-1], step=1,
-                value=validDates.index[-1],
-                marks={day: {"label": str(str(validDates[day].day) + "-" + str(validDates[day].month) + "-" +  str(validDates[day].year)
-                                          ), "style": {"transform": "rotate(45deg)", "fontSize": "20px", "margin-top": "25px"}
-                                          } for day in validDates.index},
-                verticalHeight = 1200,
-                id="date-slider"
-                )
-        )
+
+@app.callback(Output('date-slider', 'min'),
+              Output('date-slider', 'max'),
+              Output('date-slider', 'value'),
+              Output('date-slider', 'marks'),
+              Input('option-data-subset', 'data'))
+def update_slider(opData):
+    datasets = json.loads(opData)
+    validDates  = pd.Series(datasets['Calls'].keys())
+    min = validDates.index[0]
+    max = validDates.index[-1]
+    value=validDates.index[-1]
+    marks={day: {"label": validDates[day].split(" ")[0], 
+                 "style": {"transform": "rotate(45deg)", "fontSize": "15px", "margin-top": "25px","white-space":"nowrap"}
+                              } for day in validDates.index}
+    return min, max, value, marks
 
 @app.callback(
     Output("option-chain-graph", "figure"),
     Input('option-data-subset', 'data'),
-    Input("date-slider", "children"))
+    Input("date-slider", "value"))
 def plotCallsPuts(opData,value):
-    validDates  = pd.Series(opData['Calls'].keys())
-
-    plotCalls = opData['Calls'][validDates[value]]
-    plotPuts = opData['Puts'][validDates[value]]
-    price = opData['Price']
-
+    if value is None:
+         value = 0
+    datasets = json.loads(opData)
+    validDates  = pd.Series(datasets['Calls'].keys())
+    plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
+    plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
+    curntPrice = datasets['Price'][validDates[value]]
     dateToValC = plotCalls["Expiry"].map(pd.Series(data=np.arange(len(plotCalls)), index=plotCalls["Expiry"].values).to_dict())
     dateToValP = plotPuts["Expiry"].map(pd.Series(data=np.arange(len(plotPuts)), index=plotPuts["Expiry"].values).to_dict())
     # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
     # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
-
     fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0)#, subplot_titles=["Calls", "Puts"])
-    fig.add_trace(go.Scatter(x=plotCalls["Strike"]-price[validDates[value]],y=plotCalls["Ask"], mode = "markers", 
+    fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
                                     text = plotCalls["Open Interest"],
                                     opacity=0.7,
                                     marker = dict(color=dateToValC, 
@@ -212,7 +237,7 @@ def plotCallsPuts(opData,value):
                                                         width=1)                                                                                                                                                                      )
                                     ), row = 1, col = 1
                     )
-    fig.add_trace(go.Scatter(x=plotPuts["Strike"]-price[validDates[value]],y=plotPuts["Ask"], mode = "markers", 
+    fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
                                     text = plotPuts["Open Interest"],
                                     opacity=0.7,
                                     marker = dict(color=dateToValP, 
@@ -220,7 +245,7 @@ def plotCallsPuts(opData,value):
                                                 colorbar_title = "Expiry",
                                                 colorscale=px.colors.sequential.Sunset, 
                                                 colorbar=dict(thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
-                                                                            ticktext=[plotPuts["Expiry"].iloc[0], plotPuts["Expiry"].iloc[-1]]),
+                                                                            ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
                                                 line=dict(
                                                         color="white",
                                                         width=1)    

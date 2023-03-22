@@ -33,7 +33,7 @@ def main():
                  "GOOG","GME","VXX","SPY","QQQ","^VIX","^GSPC"]
     MyTickers = QueryYF.concatTickers([TopVol[0:24],MyTickers])
     print(MyTickers)
-    buildOpDatabase(MyTickers)
+    # buildOpDatabase(MyTickers)
     
     # for i in ["15:00"]:
     #     schedule.every().sunday.at(i).do(buildOpDatabase, MyTickers)

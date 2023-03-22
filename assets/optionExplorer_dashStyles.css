@@ -86,9 +86,16 @@
     color: #ffffff;
   } */
 
+  /* .rc-slider {
+    left: 100px; 
+    right: 250px;
+    top: 50px;
+    bottom: 50px;
+  } */
+
   .rc-slider-track {
     background-color: #225fa5;
-    height: 10px;
+    height: 8px;
   }
 
   .rc-slider-rail {
@@ -98,8 +105,9 @@
 
   .rc-slider-handle {
     background-color: #ffffff;
-    height: 20px;
-    width: 20px;
+    height: 15px;
+    width: 15px;
+    bottom: -4px;
   }
 
   .rc-slider-dot {

@@ -22,7 +22,7 @@ def getTickers(d1,d2):
     # Making a Connection with MongoClient
     client = mndb.MongoClient("mongodb://localhost:27017")
     # database
-    opDB = client["optionsDB"]
+    opDB = client["optionsDB_2023"]
     tickerList = opDB.list_collection_names()
     timeQuery = {"timestamp" : {"$gt": d1,"$lt": d2}}
     validTickers = []
@@ -39,7 +39,7 @@ def queryDB(ticker,d1,d2):
     # Making a Connection with MongoClient
     client = mndb.MongoClient("mongodb://localhost:27017")
     # database
-    opDB = client["optionsDB"]
+    opDB = client["optionsDB_2023"]
     # collection
     tickerData = opDB[ticker]
     
@@ -117,7 +117,7 @@ def cleanDB(ticker,d1,d2):
     # Making a Connection with MongoClient
     client = mndb.MongoClient("mongodb://localhost:27017")
     # database
-    opDB = client["optionsDB"]
+    opDB = client["optionsDB_2023"]
     # collection
     tickerData = opDB[ticker]
     tickerDataQry = tickerData.find(timeQuery,{"_id":0})    
@@ -153,12 +153,12 @@ def cleanDB(ticker,d1,d2):
 
     return()
 
-currentTime = dte.datetime.utcnow()
-origTime = dte.datetime(2021,3,1,0,0)
-tickerList = getTickers(origTime,currentTime)
-# ticker = "SPY"
-# cleanDB(ticker,origTime,currentTime)
-for ticker in tickerList:
-    print(ticker)
-    cleanDB(ticker,origTime,currentTime)
-# [Price,Calls,Puts] = queryDB(ticker,origTime,currentTime)
+# currentTime = dte.datetime.utcnow()
+# origTime = dte.datetime(2021,3,1,0,0)
+# tickerList = getTickers(origTime,currentTime)
+# # ticker = "SPY"
+# # cleanDB(ticker,origTime,currentTime)
+# for ticker in tickerList:
+#     print(ticker)
+#     cleanDB(ticker,origTime,currentTime)
+# # [Price,Calls,Puts] = queryDB(ticker,origTime,currentTime)

@@ -25,7 +25,7 @@ def scrapeOptionsData(ticker):
     # Making a Connection with MongoClient
     client = mndb.MongoClient("mongodb://localhost:27017/")
     # database
-    opDB = client["optionsDB"]
+    opDB = client["optionsDB_2023"]
     # collection
     dTicker = opDB[ticker]
     

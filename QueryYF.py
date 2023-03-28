@@ -140,8 +140,8 @@ def getOptionsData(opTicker):
         try:
              tmpPuts        = ops.get_puts(opTicker,expiry) 
              tmpCalls       = ops.get_calls(opTicker,expiry) 
-             AllPuts        = pd.concat([tmpPuts])
-             AllCalls       = pd.concat([tmpCalls])
+             AllPuts        = pd.concat([AllPuts, tmpPuts])
+             AllCalls       = pd.concat([AllCalls, tmpCalls])
              reqCount = reqCount + 2
             #  print(expiry)
         except Exception as e:
@@ -223,13 +223,19 @@ def cleanOptTables(crntCalls,crntPuts):
     crntPuts["Money"] =  crntPuts["Ask"]*crntPuts["Open Interest"]*100
     crntCalls["Money"] = crntCalls["Bid"]*crntCalls["Open Interest"]*100
     
+
+
+
     return(crntCalls,crntPuts)
 
 # Test functionality    
 #[price,reqCount] = scrapeOptionsData("^VIX")
 # getOptionsData("BABA")
+# expDates = ops.get_expiration_dates("SPY")
+# expDateIsoFmt = [dte.datetime.strptime(rawDate, '%B %d, %Y') for rawDate in expDates]
+# # print(expDateIsoFmt)
+# print(ops.get_calls("SPY",dte.datetime(2023, 3, 22, 0, 0)))
 # [Calls,Puts,opReqCount] = getOptionsData("RKT")
-# print(Calls)
-
+# scrapeOptionsData("SPY")
 # if __name__ == "__main__":
 #     main()

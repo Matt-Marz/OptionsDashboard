@@ -54,15 +54,6 @@ def appHeader():
         ],
     )
 
-# currentTime = dte.datetime.utcnow()
-# currentTime = dte.datetime(2021,3,15,10,0)
-# origTime = dte.datetime(2021,3,1,15,0)
-# currentTime = dte.datetime(2022,4,15,0,0)
-# origTime = dte.datetime(2022,1,1,0,0)
-# availTickers = qdb.getTickers(origTime,currentTime)
-# ticker = "MSFT"
-# [Price,Calls,Puts] = qdb.queryDB(ticker,origTime,currentTime)
-
 def plotTitles():
     return(dbc.Row(
             id="plot-titles",
@@ -105,14 +96,6 @@ def rangeSlider():
                     style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},
                 )
 
-# def rangeSlider():
-#     return (dcc.Slider(id='date-slider',
-#                                 min=0, max=30, step=1,
-#                                 value=30,
-#                                 marks=None,
-#                                 verticalHeight = 1200
-#                         )
-#             )
 
 def dateDropdown():
     return html.Div(
@@ -122,11 +105,11 @@ def dateDropdown():
                         # end_date_placeholder_text="End Period",
                         calendar_orientation='vertical',
                         updatemode = "bothdates",
-                        min_date_allowed=dte.date(2021, 3, 1),
+                        min_date_allowed=dte.date(2023, 3, 23),
                         max_date_allowed=dte.datetime.today(),
-                        initial_visible_month=dte.date(2023, 3, 20),
-                        start_date = dte.date(2023, 3, 20),
-                        end_date=dte.date(2023, 4, 1),
+                        initial_visible_month=dte.datetime.today(),
+                        start_date= dte.datetime.today() - dte.timedelta(days=10),
+                        end_date=dte.datetime.today(),
                     )
                 ],
                 style={"width": "50%","margin": "20px"},

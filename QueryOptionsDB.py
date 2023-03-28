@@ -53,10 +53,10 @@ def queryDB(ticker,d1,d2):
         try:
             if len(ticker.split("-")) > 1:
                 tickerSplt = ticker.split("-")[0] + ticker.split("-")[1]
-            elif ticker == "^GSPC":
-                tickerSplt = "SPX"
+            elif ticker == "^SPX":
+                tickerSplt = "SPXW"
             elif ticker == "^VIX":
-                tickerSplt = "VIX"
+                tickerSplt = "VIXW"
             else:
                 tickerSplt = ticker
 
@@ -74,7 +74,7 @@ def queryDB(ticker,d1,d2):
                 ]["Contract Name"].map(
                     lambda element : element
                     .split(tickerSplt.upper())[-1]
-                    .split("C")[0][-6::])
+                    .split("C")[0])
             # Format the date to ymd and save as date
             callData[dateStr]["Expiry"] = pd.to_datetime(callData[
                 dateStr]["Expiry"],format='%y%m%d')
@@ -90,18 +90,18 @@ def queryDB(ticker,d1,d2):
                 ]["Contract Name"].map(
                     lambda element : element
                     .split(tickerSplt.upper())[-1]
-                    .split("P")[0][-6::])
+                    .split("P")[0])
             putData[dateStr]["Expiry"] = pd.to_datetime(putData[
                 dateStr]["Expiry"],format='%y%m%d')
             putData[dateStr]["Expiry"] = putData[
                 dateStr]["Expiry"].dt.date
             putData[dateStr].set_index("Contract Name",inplace=True)
 
-
+            # callData[dateStr].to_csv('Call-' + dateStr.split(" ")[0] + '.csv') 
             # Convert dataframes to JSON files for serialization and data exchange to front end 
             callData[dateStr] = callData[dateStr].to_json(orient='split', date_format='iso')
             putData[dateStr]  = putData[dateStr].to_json(orient='split', date_format='iso')
-
+            
         except Exception as e:
             print("Unexpected irregularity from yahoo data for %s at %s" 
                   % (ticker, dateStr))
@@ -141,7 +141,7 @@ def cleanDB(ticker,d1,d2):
             print("\tRemoved data at time %s from database due to corrupt or missing data"%  x["timestamp"])
     
     ocLengths = pd.DataFrame.from_dict(chainSize,orient="index",columns=["count"]).reset_index().rename(columns={"index":"timestamp"})
-    removeSubSet = ocLengths[ocLengths["count"] < 0.25*ocLengths["count"].median()]
+    removeSubSet = ocLengths[ocLengths["count"] < 0.1*ocLengths["count"].median()]
 
     for set in removeSubSet["timestamp"]:
         # print(set)
@@ -153,12 +153,12 @@ def cleanDB(ticker,d1,d2):
 
     return()
 
-# currentTime = dte.datetime.utcnow()
-# origTime = dte.datetime(2023,1,1,0,0)
-# tickerList = getTickers(origTime,currentTime)
-# # ticker = "MSFT"
-# # cleanDB(ticker,origTime,currentTime)
-# for ticker in tickerList:
-#     print(ticker)
-#     cleanDB(ticker,origTime,currentTime)
+currentTime = dte.datetime.utcnow()
+origTime = dte.datetime(2021,3,1,0,0)
+tickerList = getTickers(origTime,currentTime)
+# ticker = "SPY"
+# cleanDB(ticker,origTime,currentTime)
+for ticker in tickerList:
+    print(ticker)
+    cleanDB(ticker,origTime,currentTime)
 # [Price,Calls,Puts] = queryDB(ticker,origTime,currentTime)

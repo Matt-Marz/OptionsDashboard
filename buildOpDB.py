@@ -30,7 +30,7 @@ def main():
     [_,_,_,_,TopVol] = QueryYF.getTickers(getDOW, getQQQ, getSPY, getOTC, getTop)
     
     MyTickers = ["AAPL" ,"ABNB","AMC","MSFT","TSLA",
-                 "GOOG","GME","VXX","SPY","QQQ","^VIX","^GSPC"]
+                 "GOOG","GME","VXX","SPY","QQQ","^VIX","^SPX"]
     MyTickers = QueryYF.concatTickers([TopVol[0:24],MyTickers])
     print(MyTickers)
     # buildOpDatabase(MyTickers)

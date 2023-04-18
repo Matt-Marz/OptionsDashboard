@@ -72,19 +72,19 @@
   .DateRangePickerInput{
     border: 0px;
     background-color: #1e2130;
-    color: #95969A;
+    color: #ffffff;
     font-weight: bold;
     font-size: 15px;
-  }
+  } 
 
-  /* .DateInput_input,.DateInput_input_1{
+  /* .DateRangePickerInput.DateInput.DateInput_1{
     background-color: #13151f;
-    color: #000000;
-  }
-
-  .DateRangePickerInput_arrow, .DateRangePickerInput_arrow_1{
     color: #ffffff;
-  } */
+  }  */
+
+  /* .DateRangePickerInput_arrow.DateRangePickerInput_arrow_1{
+    color: #ffffff;
+  }  */
 
   /* .rc-slider {
     left: 100px; 

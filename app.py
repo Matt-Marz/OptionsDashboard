@@ -18,6 +18,8 @@ external_stylesheets = [dbc.themes.BOOTSTRAP, "assets/optionExplorer_dashStyles.
 app = Dash(__name__, external_stylesheets=external_stylesheets,  meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],)
 # app = Dash(__name__)
 
+defaultTicker = "AAPL"
+
 def appHeader():
     return html.Div( 
         id="banner",
@@ -33,7 +35,7 @@ def appHeader():
                         id="banner-text",
                         children=[
                             html.H5("Options Unchained"),
-                            html.H6("Look Smart While You Gamble Your Life Savings"),
+                            html.H6("A More Intuitive Way to Trade Derivatives For Retail Traders"),
                         ],
                     )
                 ],
@@ -77,7 +79,7 @@ def tickerDropdown():
     return html.Div(
                     [
                     dcc.Dropdown(id="available-tickers",
-                                value = "SPY"
+                                value = defaultTicker
                                 )
                     ],
                     style={"width": "25%","margin": "20px", "font-size": "16px","font-weight": "bold"},
@@ -110,6 +112,10 @@ def dateDropdown():
                         initial_visible_month=dte.datetime.today(),
                         start_date= dte.datetime.today() - dte.timedelta(days=10),
                         end_date=dte.datetime.today(),
+                        style = {
+                         'background-color': '#13151f',
+                         'color': '#13151f'
+                        } 
                     )
                 ],
                 style={"width": "50%","margin": "20px"},
@@ -134,11 +140,11 @@ app.layout = html.Div(
             children=[
                     userInputs(),
                     plotTitles(),
-                    dcc.Store(id='option-data-subset'),
-                    html.Div([dcc.Graph(id="option-chain-graph",style={"margin-top":"5px"})]),# "margin-left":"50px","margin-right":"120px"})]),
+                    html.Div([dcc.Loading(dcc.Graph(id="option-chain-graph",style={"margin-top":"5px"}), type="circle")]),# "margin-left":"50px","margin-right":"120px"})]),
                     # html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},),
                     rangeSlider(),
                     html.Br(),html.Br(),html.Br(),
+                    dcc.Store(id='option-data-subset'),
             ]
         )
     ]
@@ -154,9 +160,15 @@ def createTickerDropdown(start_date, end_date):
         if end_date is not None:
             end_date_object =  dte.datetime.fromisoformat(end_date)
         validTickers = qdb.getTickers(start_date_object,end_date_object)
-        if validTickers == []:
+
+        if len(validTickers) == 0:
             return(["No available tickers for selected dates"])
-        return validTickers
+        elif validTickers is not None:
+            validTickers.sort()
+            return validTickers
+        else:
+            return validTickers
+        
           
 @app.callback(
     Output('option-data-subset', 'data'),
@@ -181,14 +193,21 @@ def getSubsetData(ticker, start_date, end_date):
               Input('option-data-subset', 'data'))
 def update_slider(opData):
     datasets = json.loads(opData)
-    validDates  = pd.Series(datasets['Calls'].keys())
-    min = validDates.index[0]
-    max = validDates.index[-1]
-    value=validDates.index[-1]
-    marks={day: {"label": validDates[day].split(" ")[0], 
-                 "style": {"transform": "rotate(45deg)", "fontSize": "15px", "margin-top": "25px","white-space":"nowrap"}
-                              } for day in validDates.index}
-    return min, max, value, marks
+    if len(list(datasets['Calls'])) != 0:
+        validDates  = pd.Series(datasets['Calls'].keys())
+        min = validDates.index[0]
+        max = validDates.index[-1]
+        value=validDates.index[0]
+        marks={day: {"label": validDates[day].split(" ")[0], 
+                    "style": {"transform": "rotate(45deg)", "fontSize": "15px", "margin-top": "25px","white-space":"nowrap"}
+                                } for day in validDates.index}
+        return min, max, value, marks
+    else:
+        min = 0
+        max = 1
+        value=1
+        marks={0:"No data found", 1:"No data found"}
+        return min, max, value, marks
 
 @app.callback(
     Output("option-chain-graph", "figure"),
@@ -198,55 +217,75 @@ def plotCallsPuts(opData,value):
     if value is None:
          value = 0
     datasets = json.loads(opData)
-    validDates  = pd.Series(datasets['Calls'].keys())
-    plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
-    plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
-    curntPrice = datasets['Price'][validDates[value]]
-    dateToValC = plotCalls["Expiry"].map(pd.Series(data=np.arange(len(plotCalls)), index=plotCalls["Expiry"].values).to_dict())
-    dateToValP = plotPuts["Expiry"].map(pd.Series(data=np.arange(len(plotPuts)), index=plotPuts["Expiry"].values).to_dict())
-    # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
-    # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
-    fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0)#, subplot_titles=["Calls", "Puts"])
-    fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
-                                    text = plotCalls["Open Interest"],
-                                    opacity=0.7,
-                                    marker = dict(color=dateToValC, 
-                                                size = 18,
-                                                colorscale=px.colors.sequential.Sunset,
-                                                # colorbar=dict(thickness=25, tickvals=[dateToValC.iloc[0], dateToValC.iloc[-1]], 
-                                                #                             ticktext=[plotCalls["Expiry"].iloc[0], plotCalls["Expiry"].iloc[-1]]),
-                                                line=dict(
-                                                        color="white",
-                                                        width=1)                                                                                                                                                                      )
-                                    ), row = 1, col = 1
-                    )
-    fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
-                                    text = plotPuts["Open Interest"],
-                                    opacity=0.7,
-                                    marker = dict(color=dateToValP, 
-                                                size = 18,
-                                                colorbar_title = "Expiry",
-                                                colorscale=px.colors.sequential.Sunset, 
-                                                colorbar=dict(thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
-                                                                            ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
-                                                line=dict(
-                                                        color="white",
-                                                        width=1)    
-                                                )
-                                    ), row = 1, col = 2
-                    )
-    fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True), title_text="Ask")
-    fig.update_xaxes(title_text="Strike - Stock Price")
-    fig.update_layout(transition_duration=500,height=1000,
-                      showlegend = False,
-                      plot_bgcolor= "#1e2130", 
-                      paper_bgcolor="rgba(0,0,0,0)",
-                      font=dict(family="Helvetica, sans-serif",
-                                size=18,  
-                                color="white"
-                                )
-                      )
-    return fig
+    if len(list(datasets['Calls'])) != 0:
+        validDates  = pd.Series(datasets['Calls'].keys())
+        plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
+        plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
+        curntPrice = datasets['Price'][validDates[value]]
+        dateToValC = plotCalls["Expiry"].map(pd.Series(data=np.arange(len(plotCalls)), index=plotCalls["Expiry"].values).to_dict())
+        dateToValP = plotPuts["Expiry"].map(pd.Series(data=np.arange(len(plotPuts)), index=plotPuts["Expiry"].values).to_dict())
+        # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
+        # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
+        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0)#, subplot_titles=["Calls", "Puts"])
+        fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
+                                        text = plotCalls["Open Interest"],
+                                        opacity=0.7,
+                                        marker = dict(color=dateToValC, 
+                                                    size = 18,
+                                                    colorscale=px.colors.sequential.Sunset,
+                                                    # colorbar=dict(thickness=25, tickvals=[dateToValC.iloc[0], dateToValC.iloc[-1]], 
+                                                    #                             ticktext=[plotCalls["Expiry"].iloc[0], plotCalls["Expiry"].iloc[-1]]),
+                                                    line=dict(
+                                                            color="white",
+                                                            width=1)                                                                                                                                                                      )
+                                        ), row = 1, col = 1
+                        )
+        fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
+                                        text = plotPuts["Open Interest"],
+                                        opacity=0.7,
+                                        marker = dict(color=dateToValP, 
+                                                    size = 18,
+                                                    colorbar_title = "Expiry",
+                                                    colorscale=px.colors.sequential.Sunset, 
+                                                    colorbar=dict(thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
+                                                                                ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
+                                                    line=dict(
+                                                            color="white",
+                                                            width=1)    
+                                                    )
+                                        ), row = 1, col = 2
+                        )
+        fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True), title_text="Ask")
+        fig.update_xaxes(title_text="Strike - Stock Price")
+        fig.update_layout(transition_duration=500,height=1000,
+                        showlegend = False,
+                        plot_bgcolor= "#1e2130", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=18,  
+                                    color="white"
+                                    )
+                        )
+        return fig
+    else:
+        fig = make_subplots(rows=1, cols=1, shared_yaxes=True, horizontal_spacing = 0)#, subplot_titles=["Calls", "Puts"])
+        fig.update_yaxes(visible=False)
+        fig.update_xaxes(visible=False)
+        fig.update_layout(transition_duration=500,height=100,
+                        showlegend = False,
+                        xaxis={"visible":False},
+                        yaxis={"visible":False},
+                        title="No Data Found, Please Reselect Date Range",
+                        plot_bgcolor= "#1e2130", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=18,  
+                                    color="white"
+                                    )
+                        )
+        return fig
+
+        
 
 if __name__ == "__main__":
     app.run_server(debug=True)

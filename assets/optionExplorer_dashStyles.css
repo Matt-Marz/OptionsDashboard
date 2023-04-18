@@ -52,7 +52,7 @@
     font-family: 'Helvetica', sans-serif;
     font-weight: 500;
     line-height: 1.2;
-    font-size: 2.5rem;
+    font-size: 2rem;
     letter-spacing: 0.1rem;
     /* text-transform: uppercase; */
   }
@@ -472,7 +472,7 @@
     margin: 1rem 2rem;
     max-width: 100%;
     width: 100%;
-    height: calc(100vh - 10rem - 1px);
+    height: calc(200vh - 10rem - 1px);
   }
   
   #app-content {

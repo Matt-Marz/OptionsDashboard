@@ -63,18 +63,18 @@ def plotTitles():
                             [
                                 html.H5("Calls",style={'textAlign': 'center',"font-weight": "bold"})
                             ],
-                            width = 6, align="center"
+                            width = 5, align="center"
                         ),
                         dbc.Col(
                             [
                                 html.H5("Puts",style={'textAlign': 'center', "font-weight": "bold"})
                             ],
-                            width = 6, align="center"
+                            width = 7, align="center"
                         ),
-                    ],style={"margin-left": "50px", "margin-right": "200px", "margin-bottom": "-100px"}
+                    ],style={"margin-left": "100px", "margin-right": "90px", "margin-bottom": "-100px"}
                 )
     )
-    
+
 def tickerDropdown():
     return html.Div(
                     [
@@ -87,7 +87,7 @@ def tickerDropdown():
 
 def rangeSlider():
     return html.Div(
-                    [
+                    [html.H6("Available Historical Dates"),
                     dcc.Slider(id="date-slider",
                                 min=0, max=30, step=1,
                                 value=30,
@@ -143,7 +143,8 @@ app.layout = html.Div(
                     html.Div([dcc.Loading(dcc.Graph(id="option-chain-graph",style={"margin-top":"5px"}), type="circle")]),# "margin-left":"50px","margin-right":"120px"})]),
                     # html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},),
                     rangeSlider(),
-                    html.Br(),html.Br(),html.Br(),
+                    # html.Br(),html.Br(),html.Br(),
+                    html.Div([dcc.Loading(dcc.Graph(id="option-oi-graph",style={"margin-top":"5px"}), type="circle")]),
                     dcc.Store(id='option-data-subset'),
             ]
         )
@@ -226,7 +227,9 @@ def plotCallsPuts(opData,value):
         dateToValP = plotPuts["Expiry"].map(pd.Series(data=np.arange(len(plotPuts)), index=plotPuts["Expiry"].values).to_dict())
         # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
         # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
-        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0)#, subplot_titles=["Calls", "Puts"])
+
+        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05)#, subplot_titles=["Calls", "Puts"])
+
         fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
                                         text = plotCalls["Open Interest"],
                                         opacity=0.7,
@@ -245,9 +248,8 @@ def plotCallsPuts(opData,value):
                                         opacity=0.7,
                                         marker = dict(color=dateToValP, 
                                                     size = 18,
-                                                    colorbar_title = "Expiry",
                                                     colorscale=px.colors.sequential.Sunset, 
-                                                    colorbar=dict(thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
+                                                    colorbar=dict(title=dict(text="Expiry", side="right"), thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
                                                                                 ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
                                                     line=dict(
                                                             color="white",
@@ -255,14 +257,15 @@ def plotCallsPuts(opData,value):
                                                     )
                                         ), row = 1, col = 2
                         )
-        fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True), title_text="Ask")
+        fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True))
+        fig.update_yaxes(title_text="Ask", row=1, col=1)
         fig.update_xaxes(title_text="Strike - Stock Price")
         fig.update_layout(transition_duration=500,height=1000,
                         showlegend = False,
                         plot_bgcolor= "#1e2130", 
                         paper_bgcolor="rgba(0,0,0,0)",
                         font=dict(family="Helvetica, sans-serif",
-                                    size=18,  
+                                    size=14,  
                                     color="white"
                                     )
                         )
@@ -279,13 +282,60 @@ def plotCallsPuts(opData,value):
                         plot_bgcolor= "#1e2130", 
                         paper_bgcolor="rgba(0,0,0,0)",
                         font=dict(family="Helvetica, sans-serif",
-                                    size=18,  
+                                    size=14,  
                                     color="white"
                                     )
                         )
         return fig
 
-        
+@app.callback(
+    Output("option-oi-graph", "figure"),
+    Input('option-data-subset', 'data'),
+    Input("date-slider", "value"))
+def plotOI(opData,value):
+    if value is None:
+         value = 0
+    datasets = json.loads(opData)
+    if len(list(datasets['Calls'])) != 0:
+        validDates  = pd.Series(datasets['Calls'].keys())
+        plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
+        plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
+        curntPrice = datasets['Price'][validDates[value]]
+
+        daysToExpiryC = (pd.to_datetime(plotCalls['Expiry']) - pd.to_datetime(plotCalls['Expiry']).iloc[0]).dt.days
+        daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']) - pd.to_datetime(plotPuts['Expiry']).iloc[0]).dt.days
+
+        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
+
+        fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC, x=plotCalls["Strike"]-curntPrice,
+                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(254,204,92,100)"], [0.75,"rgb(253,141,60,100)"], [1.0,"rgb(227,26,28,255)"]],
+                                zmin=0, zmax=plotCalls["Open Interest"].max().round(),
+                                xperiod = "M",
+                                showscale=False
+                                ), row = 1, col = 1
+        )
+        fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP, x=plotPuts["Strike"]-curntPrice,
+                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(254,204,92,100)"], [0.75,"rgb(253,141,60,175)"], [1.0,"rgb(227,26,28,255)"]],
+                                zmin=0, zmax=plotCalls["Open Interest"].max().round(),
+                                xperiod = "M",
+                                colorbar=dict(title=dict(text="Open Interest", side="right"), thickness=25)
+                                ), row = 1, col = 2
+        )
+
+        fig.update_xaxes(title_text="Strike - Stock Price")#, showgrid= False)
+        fig.update_yaxes(tickvals = daysToExpiryC.unique())#, type="log", dtick=1)#, showgrid= False) 
+        fig.update_yaxes(title_text="Days to Expiry", row=1, col=1)
+        fig.update_layout(transition_duration=500,height=1000,
+                        showlegend = False,
+                        plot_bgcolor= "#1e2130", 
+                        # plot_bgcolor= "rgba(0,0,0,255)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=14,  
+                                    color="white"
+                                    ),                        
+                        )
+        return fig
 
 if __name__ == "__main__":
     app.run_server(debug=True)

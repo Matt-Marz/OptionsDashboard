@@ -35,7 +35,7 @@ def appHeader():
                         id="banner-text",
                         children=[
                             html.H5("Options Unchained"),
-                            html.H6("A More Intuitive Way to Trade Derivatives For Retail Traders"),
+                            html.H6("Intuitive Market Data For Retail Traders"),
                         ],
                     )
                 ],
@@ -144,6 +144,7 @@ app.layout = html.Div(
                     # html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},),
                     rangeSlider(),
                     # html.Br(),html.Br(),html.Br(),
+                    html.Div([dcc.Loading(dcc.Graph(id="timeHistory",style={"margin-top":"5px"}), type="circle")]),
                     html.Div([dcc.Loading(dcc.Graph(id="option-oi-graph",style={"margin-top":"5px"}), type="circle")]),
                     dcc.Store(id='option-data-subset'),
             ]
@@ -231,7 +232,7 @@ def plotCallsPuts(opData,value):
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05)#, subplot_titles=["Calls", "Puts"])
 
         fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
-                                        text = plotCalls["Open Interest"],
+                                        text = plotCalls["Expiry"],
                                         opacity=0.7,
                                         marker = dict(color=dateToValC, 
                                                     size = 18,
@@ -244,7 +245,7 @@ def plotCallsPuts(opData,value):
                                         ), row = 1, col = 1
                         )
         fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
-                                        text = plotPuts["Open Interest"],
+                                        text = plotCalls["Expiry"],
                                         opacity=0.7,
                                         marker = dict(color=dateToValP, 
                                                     size = 18,
@@ -336,6 +337,38 @@ def plotOI(opData,value):
                                     ),                        
                         )
         return fig
+
+@app.callback(
+    Output("timeHistory", "figure"), 
+    Input('available-tickers', 'value'),
+    Input('date-select-dropdown', 'start_date'),
+    Input('date-select-dropdown', 'end_date'))
+def display_candlestick(ticker, start_date, end_date):
+    if start_date is not None:
+        start_date_object = dte.datetime.fromisoformat(start_date)
+    if end_date is not None:
+        end_date_object =  dte.datetime.fromisoformat(end_date)
+
+    df = qyf.getPriceHistory(end_date_object , start_date_object, ticker)
+    fig = go.Figure(go.Candlestick(
+        x=df.index,
+        open=df['open'],
+        high=df['high'],
+        low=df['low'],
+        close=df['close']
+    ))
+
+    fig.update_layout(xaxis_rangeslider_visible=True,
+                        transition_duration=150, width = 500, height=300,
+                        plot_bgcolor= "#1e2130", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=14,  
+                                    color="white"
+                                    )
+                        )
+
+    return fig
 
 if __name__ == "__main__":
     app.run_server(debug=True)

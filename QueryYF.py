@@ -228,7 +228,15 @@ def cleanOptTables(crntCalls,crntPuts):
 
     return(crntCalls,crntPuts)
 
-# Test functionality    
+def getPriceHistory(d1,d2,ticker):
+    priceHistory = si.get_data(ticker, start_date = d2 , end_date = d1, interval="1d")
+    return priceHistory
+
+
+# Test functionality
+# 
+getPriceHistory(dte.datetime.today(), dte.datetime.today() - dte.timedelta(days=10),"AAPL")
+#     
 #[price,reqCount] = scrapeOptionsData("^VIX")
 # getOptionsData("BABA")
 # expDates = ops.get_expiration_dates("SPY")

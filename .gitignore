@@ -6,6 +6,15 @@ __pycache__/
 # C extensions
 *.so
 
+#Jupyter Notebooks
+*.ipynb
+
+#VSCODE
+.vscode
+
+#Data Files
+*.csv
+
 # Distribution / packaging
 .Python
 build/

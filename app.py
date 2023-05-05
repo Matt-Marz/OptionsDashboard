@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
+# from sklearn.cluster import OPTICS
+
 import json 
 import pandas as pd
 import numpy as np
@@ -181,7 +183,6 @@ def createTickerDropdown(start_date, end_date):
         if end_date is not None:
             end_date_object =  dte.datetime.fromisoformat(end_date)
         validTickers = qdb.getTickers(start_date_object,end_date_object)
-
         if len(validTickers) == 0:
             return(["No available tickers for selected dates"])
         elif validTickers is not None:
@@ -206,6 +207,20 @@ def getSubsetData(ticker, start_date, end_date):
     datasets = {'Price': Price, 'Calls': Calls, 'Puts': Puts}
     return json.dumps(datasets)
 
+# @app.callback(
+#     Output('option-data-subset', 'data'),
+#     Input('available-tickers', 'options'),
+#     Input('date-select-dropdown', 'start_date'),
+#     Input('date-select-dropdown', 'end_date'))
+# def getSubsetData(ticker, start_date, end_date):
+#     if start_date is not None:
+#         start_date_object = dte.datetime.fromisoformat(start_date)
+#     if end_date is not None:
+#         end_date_object =  dte.datetime.fromisoformat(end_date)
+#     tickerQuery = ticker#['props']['value']
+#     [Price,Calls,Puts] = qdb.queryDB(tickerQuery,start_date_object,end_date_object)    
+#     datasets = {'Price': Price, 'Calls': Calls, 'Puts': Puts}
+#     return json.dumps(datasets)
 
 @app.callback(Output('date-slider', 'min'),
               Output('date-slider', 'max'),
@@ -218,7 +233,7 @@ def update_slider(opData):
         validDates  = pd.Series(datasets['Calls'].keys())
         min = validDates.index[0]
         max = validDates.index[-1]
-        value=validDates.index[0]
+        value=validDates.index[-1]
         marks={day: {"label": validDates[day].split(" ")[0], 
                     "style": {"transform": "rotate(45deg)", "fontSize": "15px", "margin-top": "25px","white-space":"nowrap"}
                                 } for day in validDates.index}
@@ -256,7 +271,7 @@ def plotCallsPuts(opData,value):
                                         text=plotCalls.index,
                                         marker = dict(color=dateToValC, 
                                                     size = 18,
-                                                    colorscale=px.colors.sequential.Sunset,
+                                                    colorscale=px.colors.sequential.dense,
                                                     # colorbar=dict(thickness=25, tickvals=[dateToValC.iloc[0], dateToValC.iloc[-1]], 
                                                     #                             ticktext=[plotCalls["Expiry"].iloc[0], plotCalls["Expiry"].iloc[-1]]),
                                                     line=dict(
@@ -266,11 +281,11 @@ def plotCallsPuts(opData,value):
                         )
         fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
                                         name="Contract",
-                                        text=plotCalls.index,
+                                        text=plotPuts.index,
                                         opacity=0.7,
                                         marker = dict(color=dateToValP, 
                                                     size = 18,
-                                                    colorscale=px.colors.sequential.Sunset, 
+                                                    colorscale=px.colors.sequential.dense, 
                                                     colorbar=dict(title=dict(text="Expiry", side="right"), thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
                                                                                 ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
                                                     line=dict(
@@ -333,14 +348,14 @@ def plotOI(opData,value):
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
 
         fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls["Strike"]-curntPrice,
-                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(224,236,244,100)"], [0.75,"rgb(158,188,218,175)"], [1.0,"rgb(136,86,167,255)"]],
+                                colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
                                 showscale=False
                                 ), row = 1, col = 1
         )
         fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts["Strike"]-curntPrice,
-                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(224,236,244,100)"], [0.75,"rgb(158,188,218,175)"], [1.0,"rgb(136,86,167,255)"]],
+                                colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
                                 colorbar=dict(title=dict(text="Open Interest", side="right"), thickness=25)

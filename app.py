@@ -27,16 +27,16 @@ def appHeader():
         children=[
             html.Div(id="banner-logo",
                     children=[                    
-                    html.A(
-                        html.Img(id="logo", src=app.get_asset_url("LogisticMap.png")),
-                        href="https://www.mathew-marzanek.com/",
-                    ),
-                    html.Div(
-                        id="banner-text",
-                        children=[
-                            html.H5("Options Unchained"),
-                            html.H6("Intuitive Market Data For Retail Traders"),
-                        ],
+                        html.A(
+                            html.Img(id="logo", src=app.get_asset_url("LogisticMap.png")),
+                            href="https://www.mathew-marzanek.com/",
+                        ),
+                        html.Div(
+                            id="banner-text",
+                            children=[
+                                html.H5("Options Unchained"),
+                                html.H6("Intuitive Market Data For Retail Traders"),
+                            ],
                     )
                 ],
             ),
@@ -78,22 +78,24 @@ def plotTitles():
 def tickerDropdown():
     return html.Div(
                     [
-                    dcc.Dropdown(id="available-tickers",
-                                value = defaultTicker
-                                )
+                        html.H6("Select Ticker"),
+                        dcc.Dropdown(id="available-tickers",
+                                    value = defaultTicker
+                                    )
                     ],
                     style={"width": "25%","margin": "20px", "font-size": "16px","font-weight": "bold"},
                 )
 
 def rangeSlider():
     return html.Div(
-                    [html.H6("Available Historical Dates"),
-                    dcc.Slider(id="date-slider",
-                                min=0, max=30, step=1,
-                                value=30,
-                                marks=None,
-                                verticalHeight = 1200
-                                )
+                    [
+                        html.H6("Available Historical Dates"),
+                        dcc.Slider(id="date-slider",
+                                    min=0, max=30, step=1,
+                                    value=30,
+                                    marks=None,
+                                    verticalHeight = 1200
+                                    )
                     ],
                     style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},
                 )
@@ -102,6 +104,7 @@ def rangeSlider():
 def dateDropdown():
     return html.Div(
                 [
+                    html.H6("Select Historical Date Range"),
                     dcc.DatePickerRange(id="date-select-dropdown",
                         # start_date_placeholder_text="Start Period",
                         # end_date_placeholder_text="End Period",
@@ -120,6 +123,22 @@ def dateDropdown():
                 ],
                 style={"width": "50%","margin": "20px"},
         )
+
+def priceHistory():
+    return html.Div([
+            html.H6("Price History"),
+            dcc.Loading(dcc.Graph(id="timeHistory",style={"margin-top":"-75px", "margin-left":"-75px"}), type="circle")
+            ]
+        )
+
+def supplementaryPlots():
+    return(dbc.Row(
+            id="sup-plots",
+            children = [
+                        priceHistory()
+                    ],style={"margin-top": "75px","margin-left": "90px", "margin-right": "25px", "margin-bottom": "25px"}
+                )
+    )
 
 def userInputs():
     return(dbc.Row(
@@ -144,8 +163,8 @@ app.layout = html.Div(
                     # html.Div(id="date-slider", style={"margin-left": "100px", "margin-right": "250px", "margin-top": "50px","margin-bottom": "50px"},),
                     rangeSlider(),
                     # html.Br(),html.Br(),html.Br(),
-                    html.Div([dcc.Loading(dcc.Graph(id="timeHistory",style={"margin-top":"5px"}), type="circle")]),
-                    html.Div([dcc.Loading(dcc.Graph(id="option-oi-graph",style={"margin-top":"5px"}), type="circle")]),
+                    supplementaryPlots(),
+                    html.Div([dcc.Loading(dcc.Graph(id="option-oi-graph",style={"margin-top":"-75px"}), type="circle")]),
                     dcc.Store(id='option-data-subset'),
             ]
         )
@@ -232,8 +251,9 @@ def plotCallsPuts(opData,value):
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05)#, subplot_titles=["Calls", "Puts"])
 
         fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
-                                        text = plotCalls["Expiry"],
                                         opacity=0.7,
+                                        name="Contract",
+                                        text=plotCalls.index,
                                         marker = dict(color=dateToValC, 
                                                     size = 18,
                                                     colorscale=px.colors.sequential.Sunset,
@@ -245,7 +265,8 @@ def plotCallsPuts(opData,value):
                                         ), row = 1, col = 1
                         )
         fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
-                                        text = plotCalls["Expiry"],
+                                        name="Contract",
+                                        text=plotCalls.index,
                                         opacity=0.7,
                                         marker = dict(color=dateToValP, 
                                                     size = 18,
@@ -261,7 +282,8 @@ def plotCallsPuts(opData,value):
         fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True))
         fig.update_yaxes(title_text="Ask", row=1, col=1)
         fig.update_xaxes(title_text="Strike - Stock Price")
-        fig.update_layout(transition_duration=500,height=1000,
+        fig.update_layout(transition_duration=500,height=700,
+                        # hovermode="x unified",
                         showlegend = False,
                         plot_bgcolor= "#1e2130", 
                         paper_bgcolor="rgba(0,0,0,0)",
@@ -302,21 +324,23 @@ def plotOI(opData,value):
         plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
         plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
         curntPrice = datasets['Price'][validDates[value]]
-
-        daysToExpiryC = (pd.to_datetime(plotCalls['Expiry']) - pd.to_datetime(plotCalls['Expiry']).iloc[0]).dt.days
-        daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']) - pd.to_datetime(plotPuts['Expiry']).iloc[0]).dt.days
+        
+        plotCalls['HistDate'] = dte.datetime.fromisoformat(validDates[value])
+        plotPuts['HistDate'] = dte.datetime.fromisoformat(validDates[value])
+        daysToExpiryC = (pd.to_datetime(plotCalls['Expiry']).dt.tz_localize('UTC') - plotCalls['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
+        daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']).dt.tz_localize('UTC') -  plotPuts['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
 
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
 
-        fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC, x=plotCalls["Strike"]-curntPrice,
-                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(254,204,92,100)"], [0.75,"rgb(253,141,60,100)"], [1.0,"rgb(227,26,28,255)"]],
+        fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls["Strike"]-curntPrice,
+                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(224,236,244,100)"], [0.75,"rgb(158,188,218,175)"], [1.0,"rgb(136,86,167,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
                                 showscale=False
                                 ), row = 1, col = 1
         )
-        fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP, x=plotPuts["Strike"]-curntPrice,
-                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(254,204,92,100)"], [0.75,"rgb(253,141,60,175)"], [1.0,"rgb(227,26,28,255)"]],
+        fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts["Strike"]-curntPrice,
+                                colorscale=[[0,"rgba(30, 33, 48, 0)"], [0.25,"rgb(224,236,244,100)"], [0.75,"rgb(158,188,218,175)"], [1.0,"rgb(136,86,167,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
                                 colorbar=dict(title=dict(text="Open Interest", side="right"), thickness=25)
@@ -326,7 +350,7 @@ def plotOI(opData,value):
         fig.update_xaxes(title_text="Strike - Stock Price")#, showgrid= False)
         fig.update_yaxes(tickvals = daysToExpiryC.unique())#, type="log", dtick=1)#, showgrid= False) 
         fig.update_yaxes(title_text="Days to Expiry", row=1, col=1)
-        fig.update_layout(transition_duration=500,height=1000,
+        fig.update_layout(transition_duration=500,height=700,
                         showlegend = False,
                         plot_bgcolor= "#1e2130", 
                         # plot_bgcolor= "rgba(0,0,0,255)",
@@ -349,7 +373,7 @@ def display_candlestick(ticker, start_date, end_date):
     if end_date is not None:
         end_date_object =  dte.datetime.fromisoformat(end_date)
 
-    df = qyf.getPriceHistory(end_date_object , start_date_object, ticker)
+    df = qyf.getPriceHistory(end_date_object, start_date_object, ticker)
     fig = go.Figure(go.Candlestick(
         x=df.index,
         open=df['open'],
@@ -358,14 +382,14 @@ def display_candlestick(ticker, start_date, end_date):
         close=df['close']
     ))
 
-    fig.update_layout(xaxis_rangeslider_visible=True,
-                        transition_duration=150, width = 500, height=300,
+    fig.update_layout(xaxis_rangeslider_visible=False,
+                        transition_duration=150, width = 500, height=350,
                         plot_bgcolor= "#1e2130", 
                         paper_bgcolor="rgba(0,0,0,0)",
                         font=dict(family="Helvetica, sans-serif",
                                     size=14,  
                                     color="white"
-                                    )
+                                    ),
                         )
 
     return fig

@@ -235,7 +235,7 @@ def getPriceHistory(d1,d2,ticker):
 
 # Test functionality
 # 
-getPriceHistory(dte.datetime.today(), dte.datetime.today() - dte.timedelta(days=10),"AAPL")
+# getPriceHistory(dte.datetime.today(), dte.datetime.today() - dte.timedelta(days=10),"AAPL")
 #     
 #[price,reqCount] = scrapeOptionsData("^VIX")
 # getOptionsData("BABA")

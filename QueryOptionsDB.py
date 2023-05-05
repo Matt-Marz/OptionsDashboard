@@ -153,6 +153,31 @@ def cleanDB(ticker,d1,d2):
 
     return()
 
+
+
+# import json
+# tickers = getTickers(dte.datetime.today() - dte.timedelta(days=10),dte.datetime.today())
+# maxMoney = pd.DataFrame()
+# for ticker in tickers:
+#     try:
+#         [Price,Calls,Puts] = queryDB(ticker, dte.datetime.today() - dte.timedelta(days=2), dte.datetime.today())
+#         if Price:
+#             # print(ticker)
+#             expiries = list(Calls.keys())
+#             expiries.sort()
+#             callDF = pd.read_json(Calls[expiries[-1]], orient='split')
+#             putDF = pd.read_json(Puts[expiries[-1]], orient='split')
+#             callMax = callDF[callDF['Money'] == callDF['Money'].max()]
+#             putMax = putDF[putDF['Money'] == putDF['Money'].max()]
+#             maxMoney = pd.concat([maxMoney,callMax,putMax])
+#     except Exception as e:
+#         print("\tError %s" % e)
+#         # print("\tBad data found for ticker %s" %ticker)   
+
+# print(maxMoney[maxMoney['Money']>10^6].sort_values(by='Money'))    
+    
+    
+# # [Price,Calls,Puts] = queryDB(ticker,origTime,currentTime)
 # currentTime = dte.datetime.utcnow()
 # origTime = dte.datetime(2021,3,1,0,0)
 # tickerList = getTickers(origTime,currentTime)

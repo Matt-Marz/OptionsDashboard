@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 
-# from sklearn.cluster import OPTICS
+from sklearn.cluster import OPTICS
 
 import json 
 import pandas as pd
@@ -129,15 +129,28 @@ def dateDropdown():
 def priceHistory():
     return html.Div([
             html.H6("Price History"),
-            dcc.Loading(dcc.Graph(id="timeHistory",style={"margin-top":"-75px", "margin-left":"-75px"}), type="circle")
+            dcc.Loading(dcc.Graph(id="timeHistory",style={"margin-top":"-50px", "margin-left":"-75px"}), type="circle")
+            ]
+        )
+
+def marketOverview():
+    return html.Div([
+            html.H6("Market Overview"),
+            dcc.Loading(dcc.Graph(id="market-overview",style={"margin-top":"-50px", "margin-left":"-75px"}), type="circle")
             ]
         )
 
 def supplementaryPlots():
     return(dbc.Row(
             id="sup-plots",
-            children = [
-                        priceHistory()
+            children = [dbc.Col(
+                                [priceHistory()],
+                                width = 5, align="top"
+                            ),
+                        dbc.Col(
+                                [marketOverview()],
+                                width = 7, align="top"
+                            ),
                     ],style={"margin-top": "75px","margin-left": "90px", "margin-right": "25px", "margin-bottom": "25px"}
                 )
     )
@@ -190,8 +203,7 @@ def createTickerDropdown(start_date, end_date):
             return validTickers
         else:
             return validTickers
-        
-          
+           
 @app.callback(
     Output('option-data-subset', 'data'),
     Input('available-tickers', 'value'),
@@ -206,21 +218,6 @@ def getSubsetData(ticker, start_date, end_date):
     [Price,Calls,Puts] = qdb.queryDB(tickerQuery,start_date_object,end_date_object)    
     datasets = {'Price': Price, 'Calls': Calls, 'Puts': Puts}
     return json.dumps(datasets)
-
-# @app.callback(
-#     Output('option-data-subset', 'data'),
-#     Input('available-tickers', 'options'),
-#     Input('date-select-dropdown', 'start_date'),
-#     Input('date-select-dropdown', 'end_date'))
-# def getSubsetData(ticker, start_date, end_date):
-#     if start_date is not None:
-#         start_date_object = dte.datetime.fromisoformat(start_date)
-#     if end_date is not None:
-#         end_date_object =  dte.datetime.fromisoformat(end_date)
-#     tickerQuery = ticker#['props']['value']
-#     [Price,Calls,Puts] = qdb.queryDB(tickerQuery,start_date_object,end_date_object)    
-#     datasets = {'Price': Price, 'Calls': Calls, 'Puts': Puts}
-#     return json.dumps(datasets)
 
 @app.callback(Output('date-slider', 'min'),
               Output('date-slider', 'max'),
@@ -246,6 +243,56 @@ def update_slider(opData):
         return min, max, value, marks
 
 @app.callback(
+    Output('market-overview', 'figure'),
+    Input('available-tickers', 'options'),
+    Input('date-select-dropdown', 'end_date'))
+def getMarketOverview(tickers, end_date):
+    if end_date is not None:
+        end_date_object =  dte.datetime.fromisoformat(end_date)
+    maxMoney = pd.DataFrame()
+    for ticker in tickers:
+        try:
+            if ticker != "^VIX" and ticker != "^SPX":
+                [Price,Calls,Puts] = qdb.queryDB(ticker, end_date_object - dte.timedelta(days=2), end_date_object)
+                if Price:
+                    # print(ticker)
+                    histTimes = list(Calls.keys())
+                    histTimes.sort()
+                    callDF = pd.read_json(Calls[histTimes[-1]], orient='split')
+                    putDF = pd.read_json(Puts[histTimes[-1]], orient='split')
+                    callDF = callDF[callDF['Money'] == callDF['Money'].max()]
+                    putDF = putDF[putDF['Money'] == putDF['Money'].max()]
+                    callDF['Ticker'] = putDF['Ticker'] = ticker
+                    callDF['Last Update'] = putDF['Last Update'] = histTimes[-1]
+                    callDF['Stock Price at Query'] = putDF['Stock Price at Query'] = Price[histTimes[-1]]
+                    callDF['Contract'] = 'Call'
+                    putDF['Contract'] = 'Put'
+                    maxMoney = pd.concat([maxMoney,callDF,putDF])
+
+        except Exception as e:
+            print("\tError %s" % e)
+        
+    pltMoney = maxMoney[maxMoney['Money']>10^7].sort_values(by='Money').tail(15)
+
+    pltMoney['today'] = dte.datetime.now(dte.timezone.utc)
+    pltMoney['daysToExpiry'] = (pd.to_datetime(pltMoney['Expiry']).dt.tz_localize('UTC') - pltMoney['today'].dt.tz_convert('UTC')).dt.days
+
+    fig = px.treemap(pltMoney, path=[px.Constant("Largest Open Contracts By Value"), 'Ticker', 'Contract'], 
+                    values='Money', color='daysToExpiry',
+                    color_continuous_scale='BuPu',range_color=[0,365])
+    
+    fig.update_layout(transition_duration=500, width = 700, height=500,
+                    plot_bgcolor= "#1e2130", 
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(family="Helvetica, sans-serif",
+                                size=14,  
+                                color="white"
+                                ),
+                        )
+
+    return fig
+
+@app.callback(
     Output("option-chain-graph", "figure"),
     Input('option-data-subset', 'data'),
     Input("date-slider", "value"))
@@ -263,9 +310,19 @@ def plotCallsPuts(opData,value):
         # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
         # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
 
+        # Clustering algo to remove stock split data. tested in jupyter before release
+        clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
+        clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
+
+        filtCalls = plotCalls[['Ask','Strike']]
+        filtPuts = plotPuts[['Ask','Strike']]
+
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05)#, subplot_titles=["Calls", "Puts"])
 
-        fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Ask"], mode = "markers", 
+        # Get call clusters
+        clustCalls.fit(filtCalls)
+
+        fig.add_trace(go.Scatter(x=plotCalls[clustCalls.labels_ == 0]["Strike"]-curntPrice,y=plotCalls[clustCalls.labels_ == 0]["Ask"], mode = "markers", 
                                         opacity=0.7,
                                         name="Contract",
                                         text=plotCalls.index,
@@ -279,7 +336,10 @@ def plotCallsPuts(opData,value):
                                                             width=1)                                                                                                                                                                      )
                                         ), row = 1, col = 1
                         )
-        fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice,y=plotPuts["Ask"], mode = "markers", 
+        # get put clusters
+        clustPuts.fit(filtPuts)
+
+        fig.add_trace(go.Scatter(x=plotPuts[clustPuts.labels_ == 0]["Strike"]-curntPrice, y=plotPuts[clustPuts.labels_ == 0]["Ask"], mode = "markers", 
                                         name="Contract",
                                         text=plotPuts.index,
                                         opacity=0.7,
@@ -345,16 +405,30 @@ def plotOI(opData,value):
         daysToExpiryC = (pd.to_datetime(plotCalls['Expiry']).dt.tz_localize('UTC') - plotCalls['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
         daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']).dt.tz_localize('UTC') -  plotPuts['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
 
+                # Clustering algo to remove stock split data. tested in jupyter before release
+        clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
+        clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
+
+        filtCalls = plotCalls[['Ask','Strike']]
+        filtPuts = plotPuts[['Ask','Strike']]
+
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
 
-        fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls["Strike"]-curntPrice,
+        # Get call clusters
+        clustCalls.fit(filtCalls)
+
+        fig.add_trace(go.Heatmap(z=plotCalls[clustCalls.labels_ == 0]["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls[clustCalls.labels_ == 0]["Strike"]-curntPrice,
                                 colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
                                 showscale=False
                                 ), row = 1, col = 1
         )
-        fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts["Strike"]-curntPrice,
+
+        # Get put clusters
+        clustPuts.fit(filtPuts)
+
+        fig.add_trace(go.Heatmap(z=plotPuts[clustPuts.labels_ == 0]["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts[clustPuts.labels_ == 0]["Strike"]-curntPrice,
                                 colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",

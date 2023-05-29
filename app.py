@@ -180,6 +180,7 @@ app.layout = html.Div(
                     # html.Br(),html.Br(),html.Br(),
                     supplementaryPlots(),
                     html.Div([dcc.Loading(dcc.Graph(id="option-oi-graph",style={"margin-top":"-75px"}), type="circle")]),
+                    html.Div([dcc.Loading(dcc.Graph(id="option-iv-graph",style={"margin-top":"-75px"}), type="circle")]),
                     dcc.Store(id='option-data-subset'),
             ]
         )
@@ -405,7 +406,7 @@ def plotOI(opData,value):
         daysToExpiryC = (pd.to_datetime(plotCalls['Expiry']).dt.tz_localize('UTC') - plotCalls['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
         daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']).dt.tz_localize('UTC') -  plotPuts['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
 
-                # Clustering algo to remove stock split data. tested in jupyter before release
+        # Clustering algo to remove stock split data. tested in jupyter before release
         clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
         clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
 
@@ -450,7 +451,101 @@ def plotOI(opData,value):
                                     ),                        
                         )
         return fig
+        
+@app.callback(
+    Output("option-iv-graph", "figure"),
+    Input('option-data-subset', 'data'),
+    Input("date-slider", "value"))
+def plotCallsPuts(opData,value):
+    if value is None:
+         value = 0
+    datasets = json.loads(opData)
+    if len(list(datasets['Calls'])) != 0:
+        validDates  = pd.Series(datasets['Calls'].keys())
+        plotCalls = pd.read_json(datasets['Calls'][validDates[value]], orient='split')
+        plotPuts = pd.read_json(datasets['Puts'][validDates[value]], orient='split')
+        curntPrice = datasets['Price'][validDates[value]]
+        dateToValC = plotCalls["Expiry"].map(pd.Series(data=np.arange(len(plotCalls)), index=plotCalls["Expiry"].values).to_dict())
+        dateToValP = plotPuts["Expiry"].map(pd.Series(data=np.arange(len(plotPuts)), index=plotPuts["Expiry"].values).to_dict())
+        # bubSizeC = 10*plotCalls["Open Interest"]/plotCalls["Open Interest"].max()
+        # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
 
+        # Clustering algo to remove stock split data. tested in jupyter before release
+        clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
+        clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
+
+        filtCalls = plotCalls[['Ask','Strike']]
+        filtPuts = plotPuts[['Ask','Strike']]
+
+        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
+
+        # Get call clusters
+        clustCalls.fit(filtCalls)
+
+        fig.add_trace(go.Scatter(x=plotCalls[clustCalls.labels_ == 0]["Strike"]-curntPrice,y=plotCalls[clustCalls.labels_ == 0]["Implied Volatility"], mode = "markers", 
+                                        opacity=0.7,
+                                        name="Contract",
+                                        text=plotCalls.index,
+                                        marker = dict(color=dateToValC, 
+                                                    size = 18,
+                                                    colorscale=px.colors.sequential.dense,
+                                                    # colorbar=dict(thickness=25, tickvals=[dateToValC.iloc[0], dateToValC.iloc[-1]], 
+                                                    #                             ticktext=[plotCalls["Expiry"].iloc[0], plotCalls["Expiry"].iloc[-1]]),
+                                                    line=dict(
+                                                            color="white",
+                                                            width=1)                                                                                                                                                                      )
+                                        ), row = 1, col = 1
+                        )
+        # get put clusters
+        clustPuts.fit(filtPuts)
+
+        fig.add_trace(go.Scatter(x=plotPuts[clustPuts.labels_ == 0]["Strike"]-curntPrice, y=plotPuts[clustPuts.labels_ == 0]["Implied Volatility"], mode = "markers", 
+                                        name="Contract",
+                                        text=plotPuts.index,
+                                        opacity=0.7,
+                                        marker = dict(color=dateToValP, 
+                                                    size = 18,
+                                                    colorscale=px.colors.sequential.dense, 
+                                                    colorbar=dict(title=dict(text="Expiry", side="right"), thickness=25, tickvals=[dateToValP.iloc[0], dateToValP.iloc[-1]], 
+                                                                                ticktext=[plotPuts["Expiry"].iloc[0].split("T")[0], plotPuts["Expiry"].iloc[-1].split("T")[0]]),
+                                                    line=dict(
+                                                            color="white",
+                                                            width=1)    
+                                                    )
+                                        ), row = 1, col = 2
+                        )
+        fig.update_yaxes(type="log",dtick=1,minor=dict(ticks="inside", ticklen=3, showgrid=True))
+        fig.update_yaxes(title_text="Implied Volatility", row=1, col=1)
+        fig.update_xaxes(title_text="Strike - Stock Price")
+        fig.update_layout(transition_duration=500,height=700,
+                        # hovermode="x unified",
+                        showlegend = False,
+                        plot_bgcolor= "#1e2130", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=14,  
+                                    color="white"
+                                    )
+                        )
+        return fig
+    else:
+        fig = make_subplots(rows=1, cols=1, shared_yaxes=True, horizontal_spacing = 0, subplot_titles=["Calls", "Puts"])
+        fig.update_yaxes(visible=False)
+        fig.update_xaxes(visible=False)
+        fig.update_layout(transition_duration=500,height=100,
+                        showlegend = False,
+                        xaxis={"visible":False},
+                        yaxis={"visible":False},
+                        title="No Data Found, Please Reselect Date Range",
+                        plot_bgcolor= "#1e2130", 
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Helvetica, sans-serif",
+                                    size=14,  
+                                    color="white"
+                                    )
+                        )
+        return fig
+    
 @app.callback(
     Output("timeHistory", "figure"), 
     Input('available-tickers', 'value'),

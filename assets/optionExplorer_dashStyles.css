@@ -472,7 +472,7 @@
     margin: 1rem 2rem;
     max-width: 100%;
     width: 100%;
-    height: calc(340vh - 10rem - 1px);
+    height: calc(250 - 10rem - 1px);
   }
   
   #app-content {

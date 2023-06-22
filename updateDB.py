@@ -21,7 +21,7 @@ tickerList = opDB.list_collection_names()
 def categoricalSplits(ticker, db):
 
     # Query mongoDB collection corresponding to input ticker
-    tickerData = opDB[ticker]
+    tickerData = db[ticker]
     # Only pull the id and option chains
     tickerDataQry = tickerData.find({},{'callData','putData'})
 
@@ -68,31 +68,35 @@ def categoricalSplits(ticker, db):
             else:
                 tickerSplt = ticker
 
+            callDF = callDF[~callDF['Contract Name'].str.contains(ticker+".*P.*", regex=True)]
+            putDF = putDF[~putDF['Contract Name'].str.contains(ticker+".*C.*", regex=True)]
+
             callExpiry = pd.to_datetime(callDF["Contract Name"].map(
                         lambda element : element
                         .split(tickerSplt.upper())[-1]
                         .split("C")[0]),format='%y%m%d')
             
-            putExpiry =  pd.to_datetime(callDF["Contract Name"].map(
+            putExpiry =  pd.to_datetime(putDF["Contract Name"].map(
                 lambda element : element
                 .split(tickerSplt.upper())[-1]
                 .split("P")[0]),format='%y%m%d')
 
             # Match Call option clustering, more efficient and easier to identify than put clusters
             putDF['SplitLogic'] = 'current'
-            putDF.loc[(~callExpiry.isin(callDF[clust.labels_ == 1]['Expiry'])) &
+            putDF.loc[(~callExpiry.isin(callDF[clust.labels_ == 1])) &
                 (~putDF['Strike'].isin(callDF[clust.labels_ == 1]['Strike'])), 'SplitLogic'] = 'lastSplit'
             
-            putDF.loc[(~putExpiry.isin(callDF[clust.labels_ == -1]['Expiry'])) &
+            putDF.loc[(~putExpiry.isin(callDF[clust.labels_ == -1])) &
                 (~putDF['Strike'].isin(callDF[clust.labels_ == -1]['Strike'])), 'SplitLogic'] = 'outlier'
 
         except Exception as e: 
             print(e)
-            print("Failed to update db")
+            print("Failed to update db with %s" % callDF["Contract Name"].iloc[0])
+            putDF.to_csv('testOutputPuts.csv')
+            callDF.to_csv('testOutputCalls.csv')
 
 
-        putDF.to_csv('testOutputPuts.csv')
-        callDF.to_csv('testOutputCalls.csv')
+
 
 categoricalSplits('TSLA', opDB)
 

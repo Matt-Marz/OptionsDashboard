@@ -207,7 +207,7 @@ def cleanOptTables(crntCalls,crntPuts):
     crntCalls["Bid"] = crntCalls["Bid"].replace("-",float(0))
     crntCalls["Last Price"] = crntCalls["Last Price"].astype(float)
     crntCalls.loc[crntCalls["Ask"] == 0,"Ask"] = crntCalls.loc[
-    crntCalls["Ask"] == 0, "Last Price"]
+        crntCalls["Ask"] == 0, "Last Price"]
     crntCalls["Ask"] = crntCalls["Ask"].astype(float)
     crntCalls["Bid"] = crntCalls["Bid"].astype(float)
     
@@ -223,9 +223,6 @@ def cleanOptTables(crntCalls,crntPuts):
     crntPuts["Money"] =  crntPuts["Ask"]*crntPuts["Open Interest"]*100
     crntCalls["Money"] = crntCalls["Bid"]*crntCalls["Open Interest"]*100
     
-
-
-
     return(crntCalls,crntPuts)
 
 def getPriceHistory(d1,d2,ticker):

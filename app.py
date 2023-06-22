@@ -407,18 +407,18 @@ def plotOI(opData,value):
         daysToExpiryP = (pd.to_datetime(plotPuts['Expiry']).dt.tz_localize('UTC') -  plotPuts['HistDate'].dt.tz_localize('UTC').dt.normalize()).dt.days
 
         # Clustering algo to remove stock split data. tested in jupyter before release
-        clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
-        clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
+        # clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
+        # clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
 
-        filtCalls = plotCalls[['Ask','Strike']]
-        filtPuts = plotPuts[['Ask','Strike']]
+        # filtCalls = plotCalls[['Ask','Strike']]
+        # filtPuts = plotPuts[['Ask','Strike']]
 
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
 
         # Get call clusters
-        clustCalls.fit(filtCalls)
+        # clustCalls.fit(filtCalls)
 
-        fig.add_trace(go.Heatmap(z=plotCalls[clustCalls.labels_ == 0]["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls[clustCalls.labels_ == 0]["Strike"]-curntPrice,
+        fig.add_trace(go.Heatmap(z=plotCalls["Open Interest"], y = daysToExpiryC.astype(str), x=plotCalls["Strike"]-curntPrice,
                                 colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
@@ -427,9 +427,9 @@ def plotOI(opData,value):
         )
 
         # Get put clusters
-        clustPuts.fit(filtPuts)
+        # clustPuts.fit(filtPuts)
 
-        fig.add_trace(go.Heatmap(z=plotPuts[clustPuts.labels_ == 0]["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts[clustPuts.labels_ == 0]["Strike"]-curntPrice,
+        fig.add_trace(go.Heatmap(z=plotPuts["Open Interest"], y =daysToExpiryP.astype(str), x=plotPuts["Strike"]-curntPrice,
                                 colorscale=[[0,"rgba(237,248,251, 0)"], [0.25,"rgba(179,205,227,100)"], [0.75,"rgba(140,150,198,175)"], [1.0,"rgba(136,65,157,255)"]],
                                 zmin=0, zmax=plotCalls["Open Interest"].max().round(),
                                 xperiod = "M",
@@ -471,18 +471,18 @@ def plotCallsPuts(opData,value):
         # bubSizeP = 10*plotPuts["Open Interest"]/plotPuts["Open Interest"].max()
 
         # Clustering algo to remove stock split data. tested in jupyter before release
-        clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
-        clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
+        # clustCalls = OPTICS(min_samples=25, xi=0.3, min_cluster_size=0.05)
+        # clustPuts = OPTICS(min_samples=25, xi=0.4, min_cluster_size=0.05)
 
-        filtCalls = plotCalls[['Ask','Strike']]
-        filtPuts = plotPuts[['Ask','Strike']]
+        # filtCalls = plotCalls[['Ask','Strike']]
+        # filtPuts = plotPuts[['Ask','Strike']]
 
         fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing = 0.05, subplot_titles=["Calls", "Puts"])
 
         # Get call clusters
-        clustCalls.fit(filtCalls)
+        # clustCalls.fit(filtCalls)
 
-        fig.add_trace(go.Scatter(x=plotCalls[clustCalls.labels_ == 0]["Strike"]-curntPrice,y=plotCalls[clustCalls.labels_ == 0]["Implied Volatility"], mode = "markers", 
+        fig.add_trace(go.Scatter(x=plotCalls["Strike"]-curntPrice,y=plotCalls["Implied Volatility"], mode = "markers", 
                                         opacity=0.7,
                                         name="Contract",
                                         text=plotCalls.index,
@@ -497,9 +497,9 @@ def plotCallsPuts(opData,value):
                                         ), row = 1, col = 1
                         )
         # get put clusters
-        clustPuts.fit(filtPuts)
+        # clustPuts.fit(filtPuts)
 
-        fig.add_trace(go.Scatter(x=plotPuts[clustPuts.labels_ == 0]["Strike"]-curntPrice, y=plotPuts[clustPuts.labels_ == 0]["Implied Volatility"], mode = "markers", 
+        fig.add_trace(go.Scatter(x=plotPuts["Strike"]-curntPrice, y=plotPuts["Implied Volatility"], mode = "markers", 
                                         name="Contract",
                                         text=plotPuts.index,
                                         opacity=0.7,

@@ -253,33 +253,35 @@ def getMarketOverview(tickers, end_date):
     maxMoney = pd.DataFrame()
     for ticker in tickers:
         try:
-            if ticker != "^VIX" and ticker != "^SPX":
-                [Price,Calls,Puts] = qdb.queryDB(ticker, end_date_object - dte.timedelta(days=2), end_date_object)
-                if Price:
-                    # print(ticker)
-                    histTimes = list(Calls.keys())
-                    histTimes.sort()
-                    callDF = pd.read_json(Calls[histTimes[-1]], orient='split')
-                    putDF = pd.read_json(Puts[histTimes[-1]], orient='split')
-                    callDF = callDF[callDF['Money'] == callDF['Money'].max()]
-                    putDF = putDF[putDF['Money'] == putDF['Money'].max()]
-                    callDF['Ticker'] = putDF['Ticker'] = ticker
-                    callDF['Last Update'] = putDF['Last Update'] = histTimes[-1]
-                    callDF['Stock Price at Query'] = putDF['Stock Price at Query'] = Price[histTimes[-1]]
-                    callDF['Contract'] = 'Call'
-                    putDF['Contract'] = 'Put'
-                    maxMoney = pd.concat([maxMoney,callDF,putDF])
+            # if ticker != "^VIX" and ticker != "^SPX":
+            [Price,Calls,Puts] = qdb.queryDB(ticker, end_date_object - dte.timedelta(days=2), end_date_object)
+            if Price:
+                # print(ticker)
+                histTimes = list(Calls.keys())
+                histTimes.sort()
+                callDF = pd.read_json(Calls[histTimes[-1]], orient='split')
+                putDF = pd.read_json(Puts[histTimes[-1]], orient='split')
+                callDF.index.name = 'Contract Name'
+                putDF.index.name = 'Contract Name'
+                callDF = callDF[callDF['Money'] == callDF['Money'].max()]
+                putDF = putDF[putDF['Money'] == putDF['Money'].max()]
+                callDF['Ticker'] = putDF['Ticker'] = ticker
+                callDF['Last Update'] = putDF['Last Update'] = histTimes[-1]
+                callDF['Stock Price at Query'] = putDF['Stock Price at Query'] = Price[histTimes[-1]]
+                callDF['Contract'] = 'Call'
+                putDF['Contract'] = 'Put'
+                maxMoney = pd.concat([maxMoney,callDF,putDF])
 
         except Exception as e:
             print("\tError %s" % e)
         
-    pltMoney = maxMoney[maxMoney['Money']>10^7].sort_values(by='Money').tail(15)
+    pltMoney = maxMoney[(maxMoney['Money']>10^7) & (maxMoney['SplitLogic'] == 'current')].reset_index().sort_values(by='Money').tail(15)
 
     pltMoney['today'] = dte.datetime.now(dte.timezone.utc)
     pltMoney['daysToExpiry'] = (pd.to_datetime(pltMoney['Expiry']).dt.tz_localize('UTC') - pltMoney['today'].dt.tz_convert('UTC')).dt.days
 
     fig = px.treemap(pltMoney, path=[px.Constant("Largest Open Contracts By Value"), 'Ticker', 'Contract'], 
-                    values='Money', color='daysToExpiry',
+                    values='Money', color='daysToExpiry', hover_data=['Contract Name'],
                     color_continuous_scale='BuPu',range_color=[0,365])
     
     fig.update_layout(transition_duration=500, width = 700, height=500,
@@ -456,7 +458,7 @@ def plotOI(opData,value):
     Output("option-iv-graph", "figure"),
     Input('option-data-subset', 'data'),
     Input("date-slider", "value"))
-def plotCallsPuts(opData,value):
+def plotIV(opData,value):
     if value is None:
          value = 0
     datasets = json.loads(opData)

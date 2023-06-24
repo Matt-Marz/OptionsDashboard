@@ -15,6 +15,13 @@ import time
 from itertools import chain
 import pymongo as mndb
 
+from sklearn.cluster import OPTICS
+from sklearn.preprocessing import StandardScaler, QuantileTransformer
+import warnings
+
+import QueryOptionsDB as qdb
+
+
 # def main():    
 
 def scrapeOptionsData(ticker):
@@ -35,7 +42,7 @@ def scrapeOptionsData(ticker):
     Calls.reset_index(inplace=True)
     Puts.reset_index(inplace=True)
 
-    [CallsClean, CleanPuts] = cleanOptTables(Calls,Puts)
+    [CallsClean, CleanPuts] = cleanOptTables(Calls,Puts,ticker)
 
     callsDict = CallsClean.to_dict("records")
     putsDict = CleanPuts.to_dict("records")
@@ -172,7 +179,7 @@ def largeNumStringToFloat(numIn):
         
     return(numOut)
 
-def cleanOptTables(crntCalls,crntPuts):
+def cleanOptTables(crntCalls,crntPuts, ticker):
 
     # Remove options with no open interest or undefined open interest
     crntPuts["Open Interest"] = crntPuts["Open Interest"].replace("-",int(0))
@@ -223,6 +230,56 @@ def cleanOptTables(crntCalls,crntPuts):
     crntPuts["Money"] =  crntPuts["Ask"]*crntPuts["Open Interest"]*100
     crntCalls["Money"] = crntCalls["Bid"]*crntCalls["Open Interest"]*100
     
+    X = crntCalls[['Ask','Strike']]
+
+    # Normalize via quantile transform to a gaissan distribution, normalize magnitude of ask, strike to 0-1
+    quantile_transformer = QuantileTransformer(output_distribution='normal', random_state=0)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        X_trans = quantile_transformer.fit_transform(X)
+
+    X_normalized = StandardScaler().fit_transform(X_trans)
+
+    # Use OPTICS clustering to identify stock splits and outliers
+    # Manual hyper-paremeter optimization using Jupyter notebook
+    clust = OPTICS(min_samples=7, xi=0.05, min_cluster_size=0.1)
+
+    # Run the fit
+    clust.fit(X_normalized)
+
+    # Verbose output options, review clustering output
+    # space = np.arange(len(X))
+    # reachability = clust.reachability_[clust.ordering_]
+    # labels = clust.labels_[clust.ordering_]
+
+    # Assume maximum of 3 groups for now, can update later 
+    crntCalls['SplitLogic'] = 'current'
+    crntCalls.loc[clust.labels_ == 1, 'SplitLogic'] = 'lastSplit'
+    crntCalls.loc[clust.labels_ == -1, 'SplitLogic']  = 'outlier'
+
+    # Clean the DB, remove improperly categorized contracts
+    crntCalls = crntCalls[~crntCalls['Contract Name'].str.contains(ticker+".*P.*", regex=True)]
+    crntPuts = crntPuts[~crntPuts['Contract Name'].str.contains(ticker+".*C.*", regex=True)]
+
+    # Extract expiries and match put option chain outliers and splits based on call expiries and strikes
+    callExpiry =  pd.to_datetime(qdb.extractExpiryFromContractName(crntCalls["Contract Name"], ticker, isCall=True))
+    putExpiry =  pd.to_datetime(qdb.extractExpiryFromContractName(crntPuts["Contract Name"], ticker, isCall=False))
+
+    # Match Call option clustering, more efficient and easier to identify than put clusters
+    crntPuts['SplitLogic'] = 'current'
+    try:
+        crntPuts.loc[(~callExpiry.isin(crntCalls[clust.labels_ == 1])) &
+            (~crntPuts['Strike'].isin(crntCalls[clust.labels_ == 1]['Strike'])), 'SplitLogic'] = 'lastSplit'
+        
+        crntPuts.loc[(~callExpiry.isin(crntCalls[clust.labels_ == -1])) &
+            (~crntPuts['Strike'].isin(crntCalls[clust.labels_ == -1]['Strike'])), 'SplitLogic'] = 'outlier'
+    except Exception as e:
+        print('Put/Call option chain mismatch, data should be dropped')
+        putDF['SplitLogic'] = 'outlier'
+        print(e)
+
+
     return(crntCalls,crntPuts)
 
 def getPriceHistory(d1,d2,ticker):

@@ -16,8 +16,6 @@ import os
 import shutil
 import glob
 
-
-
 def getTickers(d1,d2):    
     # Making a Connection with MongoClient
     client = mndb.MongoClient("mongodb://localhost:27017")
@@ -51,17 +49,8 @@ def queryDB(ticker,d1,d2):
     # Build a data structure for transmission to front end visualization tool
     for x in tickerDataQry:
         try:
-            if len(ticker.split("-")) > 1:
-                tickerSplt = ticker.split("-")[0] + ticker.split("-")[1]
-            elif ticker == "^SPX":
-                tickerSplt = "SPXW"
-            elif ticker == "^VIX":
-                tickerSplt = "VIXW"
-            else:
-                tickerSplt = ticker
 
             # Convert date to string for JSONification 
-
             dateStr = str(x["timestamp"])
 
             # Add price data to the output data structure
@@ -69,15 +58,15 @@ def queryDB(ticker,d1,d2):
             
             # Format dates to standardize to DB format, use contract name to get expiry date
             callData[dateStr] = pd.DataFrame(x["callData"])
-            # Split the contract name to get the expiry (pretty slow operation for now)
-            callData[dateStr]["Expiry"] = callData[dateStr
-                ]["Contract Name"].map(
-                    lambda element : element
-                    .split(tickerSplt.upper())[-1]
-                    .split("C")[0])
+            
+            callData[dateStr]["Expiry"] = extractExpiryFromContractName(callData[dateStr]["Contract Name"], 
+                                                                        ticker, 
+                                                                        isCall=True)
+            
             # Format the date to ymd and save as date
             callData[dateStr]["Expiry"] = pd.to_datetime(callData[
                 dateStr]["Expiry"],format='%y%m%d')
+            
             callData[dateStr]["Expiry"] = callData[
                 dateStr]["Expiry"].dt.date
             
@@ -86,18 +75,18 @@ def queryDB(ticker,d1,d2):
           
             # Repeat above for put contracts
             putData[dateStr] = pd.DataFrame(x["putData"])
-            putData[dateStr]["Expiry"] = putData[dateStr
-                ]["Contract Name"].map(
-                    lambda element : element
-                    .split(tickerSplt.upper())[-1]
-                    .split("P")[0])
+
+            putData[dateStr]["Expiry"] = extractExpiryFromContractName(putData[dateStr]["Contract Name"], 
+                                                                        ticker, 
+                                                                        isCall=False)
+            
             putData[dateStr]["Expiry"] = pd.to_datetime(putData[
                 dateStr]["Expiry"],format='%y%m%d')
             putData[dateStr]["Expiry"] = putData[
                 dateStr]["Expiry"].dt.date
+            
             putData[dateStr].set_index("Contract Name",inplace=True)
 
-            # callData[dateStr].to_csv('Call-' + dateStr.split(" ")[0] + '.csv') 
             # Convert dataframes to JSON files for serialization and data exchange to front end 
             callData[dateStr] = callData[dateStr].to_json(orient='split', date_format='iso')
             putData[dateStr]  = putData[dateStr].to_json(orient='split', date_format='iso')
@@ -110,6 +99,34 @@ def queryDB(ticker,d1,d2):
                   % (ticker, dateStr))
             continue
     return(price,callData,putData)
+
+def extractExpiryFromContractName(contractNameSeries, tick, isCall=True):
+    # Extract expiry date by separating out strike information, demarcated by C for calls, P for puts
+    if isCall == True:
+        contractPrefix = "C"
+    else:
+        contractPrefix = "P"
+
+    # Drop the ticker prefix, handle edge case for euro style options on VIX and sp500 indices
+    if len(tick.split("-")) > 1:
+        tickerSplt = tick.split("-")[0] + tick.split("-")[1]
+    elif tick[0] == "^":
+        tickerSplt_a = tick.split("^")[-1]
+        tickerSplt_b = "W"
+        expirySeries = contractNameSeries.map(
+                        lambda element : element
+                        .split(tickerSplt_a.upper())[-1]
+                        .split(tickerSplt_b.upper())[-1]
+                        .split(contractPrefix)[0])
+    else:
+        tickerSplt   = tick
+        expirySeries = contractNameSeries.map(
+                        lambda element : element
+                        .split(tickerSplt.upper())[-1]
+                        .split(contractPrefix)[0])
+        
+    return(expirySeries)
+
 
 def cleanDB(ticker,d1,d2):
     #Only run after backing up database
@@ -140,6 +157,7 @@ def cleanDB(ticker,d1,d2):
             print("\tBad data found for ticker %s" %ticker)
             print("\tRemoved data at time %s from database due to corrupt or missing data"%  x["timestamp"])
     
+    # Remove options chains that are less than 10% of the option chain median length
     ocLengths = pd.DataFrame.from_dict(chainSize,orient="index",columns=["count"]).reset_index().rename(columns={"index":"timestamp"})
     removeSubSet = ocLengths[ocLengths["count"] < 0.1*ocLengths["count"].median()]
 

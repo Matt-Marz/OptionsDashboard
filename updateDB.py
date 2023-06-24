@@ -1,34 +1,30 @@
 import pandas as pd
 import numpy as np
-import QueryYF as qyf
 import QueryOptionsDB as qdb
 import datetime as dte
 import pymongo as mndb
-from bson.objectid import ObjectId
+import warnings
 
+from bson.objectid import ObjectId
+from tqdm import tqdm
 
 from sklearn.cluster import OPTICS
 from sklearn.preprocessing import StandardScaler, QuantileTransformer
 
-
-# Making a Connection with MongoClient
-client = mndb.MongoClient("mongodb://localhost:27017")
-# database
-opDB = client["optionsDB_2023"]
-
-tickerList = opDB.list_collection_names()
-
+## Use OPTICS clustering to remove stock splits, good for convex clusters
 def categoricalSplits(ticker, db):
 
     # Query mongoDB collection corresponding to input ticker
     tickerData = db[ticker]
     # Only pull the id and option chains
     tickerDataQry = tickerData.find({},{'callData','putData'})
+    
+    # print("Updating DB for %s" % ticker)    
 
     # Iterate through query and assign option chain to a dataframe
-    for item in tickerDataQry:
+    for item in tqdm(tickerDataQry):
         try:
-                
+            # print("Updating DB for %s" % item['_id'])    
             callDF = pd.DataFrame.from_records(item['callData'])
             putDF = pd.DataFrame.from_records(item['putData'])
 
@@ -38,7 +34,11 @@ def categoricalSplits(ticker, db):
             # Normalize via quantile transform to a gaissan distribution, normalize magnitude of ask, strike to 0-1
             # X_normalized = pd.concat([callDF['Ask'], callDF['Strike']/callDF['Strike'].max()],axis=1)
             quantile_transformer = QuantileTransformer(output_distribution='normal', random_state=0)
-            X_trans = quantile_transformer.fit_transform(X)
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                X_trans = quantile_transformer.fit_transform(X)
+
             X_normalized = StandardScaler().fit_transform(X_trans)
 
             # Use OPTICS clustering to identify stock splits and outliers
@@ -58,45 +58,52 @@ def categoricalSplits(ticker, db):
             callDF.loc[clust.labels_ == 1, 'SplitLogic'] = 'lastSplit'
             callDF.loc[clust.labels_ == -1, 'SplitLogic']  = 'outlier'
 
-            # Pull expiry data from the contract name
-            if len(ticker.split("-")) > 1:
-                tickerSplt = ticker.split("-")[0] + ticker.split("-")[1]
-            elif ticker == "^SPX":
-                tickerSplt = "SPXW"
-            elif ticker == "^VIX":
-                tickerSplt = "VIXW"
-            else:
-                tickerSplt = ticker
-
+            # Clean the DB, remove improperly categorized contracts
             callDF = callDF[~callDF['Contract Name'].str.contains(ticker+".*P.*", regex=True)]
             putDF = putDF[~putDF['Contract Name'].str.contains(ticker+".*C.*", regex=True)]
 
-            callExpiry = pd.to_datetime(callDF["Contract Name"].map(
-                        lambda element : element
-                        .split(tickerSplt.upper())[-1]
-                        .split("C")[0]),format='%y%m%d')
-            
-            putExpiry =  pd.to_datetime(putDF["Contract Name"].map(
-                lambda element : element
-                .split(tickerSplt.upper())[-1]
-                .split("P")[0]),format='%y%m%d')
+            # Extract expiries and match put option chain outliers and splits based on call expiries and strikes
+            callExpiry =  pd.to_datetime(qdb.extractExpiryFromContractName(callDF["Contract Name"], ticker, isCall=True))
+            # putExpiry =  pd.to_datetime(qdb.extractExpiryFromContractName(putDF["Contract Name"], ticker, isCall=False))
 
             # Match Call option clustering, more efficient and easier to identify than put clusters
             putDF['SplitLogic'] = 'current'
-            putDF.loc[(~callExpiry.isin(callDF[clust.labels_ == 1])) &
-                (~putDF['Strike'].isin(callDF[clust.labels_ == 1]['Strike'])), 'SplitLogic'] = 'lastSplit'
+            try:
+                putDF.loc[(~callExpiry.isin(callDF[clust.labels_ == 1])) &
+                    (~putDF['Strike'].isin(callDF[clust.labels_ == 1]['Strike'])), 'SplitLogic'] = 'lastSplit'
+                
+                putDF.loc[(~callExpiry.isin(callDF[clust.labels_ == -1])) &
+                    (~putDF['Strike'].isin(callDF[clust.labels_ == -1]['Strike'])), 'SplitLogic'] = 'outlier'
+            except Exception as e:
+                print('Put/Call option chain mismatch, data should be dropped')
+                putDF['SplitLogic'] = 'outlier'
+                print(e)
             
-            putDF.loc[(~putExpiry.isin(callDF[clust.labels_ == -1])) &
-                (~putDF['Strike'].isin(callDF[clust.labels_ == -1]['Strike'])), 'SplitLogic'] = 'outlier'
+            # Use pymongo UPDATE MANY to replace array in db with new data frames
+            idQuery = { "_id" :  item['_id']}
+            updateCalls = tickerData.update_many(idQuery, {"$set":{"callData":callDF.to_dict("records")}})
+            updatePuts  = tickerData.update_many(idQuery, {"$set":{"putData":putDF.to_dict("records")}})
+
+            # print(updateCalls.raw_result)
+            # print(updatePuts.raw_result)
 
         except Exception as e: 
             print(e)
-            print("Failed to update db with %s" % callDF["Contract Name"].iloc[0])
-            putDF.to_csv('testOutputPuts.csv')
-            callDF.to_csv('testOutputCalls.csv')
+            print("Failed to update for DB entry %s" % item('_id'))
+            # putDF.to_csv('testOutputPuts.csv')
+            # callDF.to_csv('testOutputCalls.csv')
 
 
 
+if __name__ == "__main__":
+    # Making a Connection with MongoClient
+    client = mndb.MongoClient("mongodb://localhost:27017")
+    # database
+    opDB = client["optionsDB_2023"]
 
-categoricalSplits('TSLA', opDB)
+    tickerList = opDB.list_collection_names()
+
+    for ticker in tqdm(tickerList):
+        categoricalSplits(ticker, opDB)
+
 
